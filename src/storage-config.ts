@@ -360,21 +360,13 @@ storageConfigRoutes.get('/quota', async (c) => {
 
   let usedBytes = 0;
   let objectCount = 0;
-  let cursor: string | undefined;
-  let pages = 0;
   let truncated = false;
 
   try {
-    do {
-      const page = await engine.list('', { limit: 1000, cursor });
-      for (const obj of page.objects) {
-        usedBytes += obj.size || 0;
-        objectCount++;
-      }
-      cursor = page.truncated ? page.cursor : undefined;
-      pages++;
-      if (cursor && pages >= QUOTA_SCAN_MAX_PAGES) { truncated = true; break; }
-    } while (cursor);
+    const usage = await engine.sumUsage(QUOTA_SCAN_MAX_PAGES);
+    usedBytes = usage.bytes;
+    objectCount = usage.count;
+    truncated = usage.truncated;
   } catch (e) {
     return c.json({ error: errorMessage(e) }, 500);
   }

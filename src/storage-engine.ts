@@ -21,6 +21,13 @@ export interface ListOptions {
   cursor?: string;
 }
 
+export interface UsageResult {
+  bytes: number;
+  count: number;
+  /** 达到页数上限时仍有更多对象未统计 */
+  truncated: boolean;
+}
+
 export interface HeadResult {
   key: string;
   size: number;
@@ -49,6 +56,9 @@ export interface GetResult {
 export interface StorageEngine {
   readonly kind: 'r2' | 's3';
   list(prefix: string, options?: ListOptions): Promise<ListResult>;
+  /** 用量统计专用：只累加对象大小与数量。list() 会为每个对象调用 toISOString()，
+   *  在 Workers 免费版 10ms CPU 预算下，几万个对象就会超限，故单独提供此路径。 */
+  sumUsage(maxPages?: number): Promise<UsageResult>;
   get(key: string): Promise<GetResult | null>;
   head(key: string): Promise<HeadResult | null>;
   put(key: string, data: ArrayBuffer | string, options?: { contentType?: string; customMetadata?: Record<string, string> }): Promise<void>;
@@ -84,6 +94,25 @@ class R2StorageEngine implements StorageEngine {
       truncated: listed.truncated,
       cursor: listed.truncated ? listed.cursor : undefined,
     };
+  }
+
+  async sumUsage(maxPages = 100): Promise<UsageResult> {
+    let bytes = 0;
+    let count = 0;
+    let cursor: string | undefined;
+    let pages = 0;
+    let truncated = false;
+    do {
+      const listed = await this.bucket.list({ limit: 1000, cursor });
+      for (const obj of listed.objects) {
+        bytes += obj.size || 0;
+        count++;
+      }
+      cursor = listed.truncated ? listed.cursor : undefined;
+      pages++;
+      if (cursor && pages >= maxPages) { truncated = true; break; }
+    } while (cursor);
+    return { bytes, count, truncated };
   }
 
   async get(key: string): Promise<GetResult | null> {
@@ -266,6 +295,25 @@ class S3StorageEngine implements StorageEngine {
       truncated: isTruncated,
       cursor: isTruncated ? nextToken : undefined,
     };
+  }
+
+  async sumUsage(maxPages = 100): Promise<UsageResult> {
+    let bytes = 0;
+    let count = 0;
+    let cursor: string | undefined;
+    let pages = 0;
+    let truncated = false;
+    do {
+      const page = await this.list('', { limit: 1000, cursor });
+      for (const obj of page.objects) {
+        bytes += obj.size || 0;
+        count++;
+      }
+      cursor = page.truncated ? page.cursor : undefined;
+      pages++;
+      if (cursor && pages >= maxPages) { truncated = true; break; }
+    } while (cursor);
+    return { bytes, count, truncated };
   }
 
   async get(key: string): Promise<GetResult | null> {
