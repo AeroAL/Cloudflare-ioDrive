@@ -214,8 +214,10 @@ npm run dev
 
 **到期提醒：**
 
-- **Workers Traces 从 2026-10-01 起开始计费**（当前 beta 免费）。配置里 `traces` 采样率为 0.01，
-  量很小，但如果想完全避免，可在 `wrangler.toml` 删除 `[observability.traces]` 段。
+- **Workers Traces 已关闭**。上游模板开启了 `[observability.traces]`，而 Traces 从 2026-10-01 起
+  开始计费（此前 beta 免费）。本 fork 已在 CI 生成配置中移除该段，仅保留 Workers Logs（免费版
+  每天 20 万条事件，足够个人使用），以消除计费不确定性。需要排查性能问题时，在
+  `.github/workflows/deploy.yml` 的配置生成段加回 `[observability.traces]` 即可。
 
 ## 9. 与上游同步
 

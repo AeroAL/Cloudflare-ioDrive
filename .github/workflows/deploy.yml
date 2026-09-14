@@ -124,9 +124,6 @@ jobs:
           [observability.logs]
           invocation_logs = true
           head_sampling_rate = 1
-          [observability.traces]
-          enabled = true
-          head_sampling_rate = 0.01
           EOF
 
           if [ -n "${CACHE_KV_ID}" ]; then
