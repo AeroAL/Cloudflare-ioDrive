@@ -14,4 +14,7 @@ wrangler.demo.toml
 # Claude
 CLAUDE.md
 
+# ZCode harness
+.zcode/
+
 .cf-imgbed-research

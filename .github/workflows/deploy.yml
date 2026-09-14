@@ -8,7 +8,6 @@ on:
   pull_request:
     branches:
       - main
-      - demo
 
 permissions:
   contents: read
@@ -35,8 +34,8 @@ jobs:
       - name: Type check and dry-run build
         run: npm run check
 
-  deploy-main:
-    name: Deploy Production
+  deploy:
+    name: Deploy
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: quality
@@ -51,48 +50,74 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Validate required deployment secrets
+
+      - name: Validate required configuration
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           META_DB_ID: ${{ secrets.META_DB_ID }}
           ADMIN_PASS: ${{ secrets.ADMIN_PASS }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          TURNSTILE_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
+          TURNSTILE_SECRET: ${{ secrets.TURNSTILE_SECRET }}
+          DEPLOY_DOMAIN: ${{ vars.DEPLOY_DOMAIN }}
+          R2_BUCKET: ${{ vars.R2_BUCKET }}
+          R2_PUBLIC_DOMAIN: ${{ vars.R2_PUBLIC_DOMAIN }}
         run: |
-          test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing CLOUDFLARE_API_TOKEN"; exit 1; }
-          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Missing CLOUDFLARE_ACCOUNT_ID"; exit 1; }
-          test -n "$META_DB_ID" || { echo "Missing META_DB_ID"; exit 1; }
-          test -n "$ADMIN_PASS" || { echo "Missing ADMIN_PASS"; exit 1; }
-          test -n "$JWT_SECRET" || { echo "Missing JWT_SECRET"; exit 1; }
-      - name: Create production config
+          missing=0
+          check() { if [ -z "${!1}" ]; then echo "::error::Missing $2: $1"; missing=1; fi; }
+          check CLOUDFLARE_API_TOKEN  "secret"
+          check CLOUDFLARE_ACCOUNT_ID "secret"
+          check META_DB_ID            "secret"
+          check ADMIN_PASS            "secret"
+          check JWT_SECRET            "secret"
+          check TURNSTILE_SITE_KEY    "secret"
+          check TURNSTILE_SECRET      "secret"
+          check DEPLOY_DOMAIN         "variable"
+          check R2_BUCKET             "variable"
+          check R2_PUBLIC_DOMAIN      "variable"
+          [ "$missing" -eq 0 ] || { echo "::error::Configure the missing repository secrets/variables, see docs/FORK_DEPLOY.md"; exit 1; }
+          echo "All required configuration is present."
+
+      - name: Create wrangler.toml
+        env:
+          WORKER_NAME: ${{ vars.WORKER_NAME }}
+          SITE_ID: ${{ vars.SITE_ID }}
+          ADMIN_USER: ${{ vars.ADMIN_USER }}
+          DEPLOY_DOMAIN: ${{ vars.DEPLOY_DOMAIN }}
+          R2_BUCKET: ${{ vars.R2_BUCKET }}
+          R2_PUBLIC_DOMAIN: ${{ vars.R2_PUBLIC_DOMAIN }}
+          CACHE_KV_ID: ${{ secrets.CACHE_KV_ID }}
+          RATE_LIMITER_NAMESPACE_ID: ${{ vars.RATE_LIMITER_NAMESPACE_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TURNSTILE_SITE_KEY: ${{ secrets.TURNSTILE_SITE_KEY }}
         run: |
-          cat > wrangler.toml <<'EOF'
-          name = "iodrive"
+          WORKER_NAME="${WORKER_NAME:-iodrive}"
+          SITE_ID="${SITE_ID:-production}"
+          ADMIN_USER="${ADMIN_USER:-admin}"
+
+          cat > wrangler.toml <<EOF
+          name = "${WORKER_NAME}"
           main = "src/index.ts"
           compatibility_date = "2026-09-12"
           compatibility_flags = ["nodejs_compat"]
           workers_dev = false
           preview_urls = false
-          account_id = "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
-          routes = [{ pattern = "drive.iodevo.com/*", zone_name = "iodevo.com" }]
+          account_id = "${CLOUDFLARE_ACCOUNT_ID}"
+          routes = [{ pattern = "${DEPLOY_DOMAIN}", custom_domain = true }]
 
           [vars]
-          SITE_ID = "production"
-          ADMIN_USER = "admin"
-          APP_DOMAIN = "drive.iodevo.com"
-          R2_PUBLIC_DOMAIN = "r2.iodevo.com"
-          R2_BUCKET = "iodrive-apac"
-          R2_ACCOUNT_ID = "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
-          TURNSTILE_SITE_KEY = "${{ secrets.TURNSTILE_SITE_KEY }}"
-          S3_ENDPOINT = "${{ secrets.S3_ENDPOINT }}"
-          S3_BUCKET = "${{ secrets.S3_BUCKET }}"
-          S3_REGION = "${{ secrets.S3_REGION }}"
+          SITE_ID = "${SITE_ID}"
+          ADMIN_USER = "${ADMIN_USER}"
+          APP_DOMAIN = "${DEPLOY_DOMAIN}"
+          R2_PUBLIC_DOMAIN = "${R2_PUBLIC_DOMAIN}"
+          TURNSTILE_SITE_KEY = "${TURNSTILE_SITE_KEY}"
           PUBLIC_UPLOAD_PATH = "uploads/public/"
           PUBLIC_UPLOAD_MAX_BYTES = "2147483648"
 
           [[r2_buckets]]
           binding = "DRIVE"
-          bucket_name = "iodrive-apac"
+          bucket_name = "${R2_BUCKET}"
 
           [observability]
           enabled = true
@@ -104,148 +129,80 @@ jobs:
           head_sampling_rate = 0.01
           EOF
 
-          if [ -n "${{ secrets.CACHE_KV_ID }}" ]; then
-            cat >> wrangler.toml <<'EOF'
+          if [ -n "${CACHE_KV_ID}" ]; then
+            cat >> wrangler.toml <<EOF
 
           [[kv_namespaces]]
           binding = "CACHE_KV"
-          id = "${{ secrets.CACHE_KV_ID }}"
+          id = "${CACHE_KV_ID}"
           EOF
           fi
 
-          cat >> wrangler.toml <<'EOF'
+          cat >> wrangler.toml <<EOF
 
           [[d1_databases]]
           binding = "META_DB"
           database_name = "iodrive-meta"
           database_id = "${{ secrets.META_DB_ID }}"
           migrations_dir = "database/migrations"
+          EOF
+
+          if [ -n "${RATE_LIMITER_NAMESPACE_ID}" ]; then
+            cat >> wrangler.toml <<EOF
 
           [[ratelimits]]
           name = "RATE_LIMITER"
-          namespace_id = "1001"
+          namespace_id = "${RATE_LIMITER_NAMESPACE_ID}"
           [ratelimits.simple]
           limit = 100
           period = 60
           EOF
-      - name: Apply production database migrations
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
-            npx wrangler d1 migrations apply META_DB --remote
-          else
-            echo "::warning::CLOUDFLARE_D1_API_TOKEN is not configured; skipping automatic D1 migrations"
           fi
-      - name: Upload production secrets
+
+          echo "Generated wrangler.toml:"
+          cat wrangler.toml
+
+      - name: Ensure R2 bucket exists
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          R2_BUCKET: ${{ vars.R2_BUCKET }}
         run: |
-          echo "${{ secrets.ADMIN_PASS }}" | npx wrangler secret put ADMIN_PASS
-          echo "${{ secrets.JWT_SECRET }}" | npx wrangler secret put JWT_SECRET
-          if [ -n "${{ secrets.TURNSTILE_SECRET }}" ]; then echo "${{ secrets.TURNSTILE_SECRET }}" | npx wrangler secret put TURNSTILE_SECRET; fi
-          if [ -n "${{ secrets.R2_ACCESS_KEY }}" ]; then echo "${{ secrets.R2_ACCESS_KEY }}" | npx wrangler secret put R2_ACCESS_KEY; fi
-          if [ -n "${{ secrets.R2_SECRET_KEY }}" ]; then echo "${{ secrets.R2_SECRET_KEY }}" | npx wrangler secret put R2_SECRET_KEY; fi
-          if [ -n "${{ secrets.S3_ACCESS_KEY }}" ]; then echo "${{ secrets.S3_ACCESS_KEY }}" | npx wrangler secret put S3_ACCESS_KEY; fi
-          if [ -n "${{ secrets.S3_SECRET_KEY }}" ]; then echo "${{ secrets.S3_SECRET_KEY }}" | npx wrangler secret put S3_SECRET_KEY; fi
-      - name: Deploy to production
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy
-      - name: Success
-        run: echo "✅ https://drive.iodevo.com"
-
-  deploy-demo:
-    name: Deploy Read-only Demo
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: deploy-main
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '22'
-          cache: npm
-      - name: Install dependencies
-        run: npm ci
-      - name: Create demo config
-        run: |
-          cat > wrangler.toml <<'EOF'
-          name = "iodrive-demo"
-          main = "src/index.ts"
-          compatibility_date = "2026-09-12"
-          compatibility_flags = ["nodejs_compat"]
-          workers_dev = false
-          preview_urls = false
-          account_id = "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
-          routes = [{ pattern = "demo.iodevo.com/*", zone_name = "iodevo.com" }]
-
-          [vars]
-          SITE_ID = "demo"
-          DEMO_MODE = "true"
-          ADMIN_USER = "disabled"
-          R2_BUCKET = "iodrive-demo"
-          PUBLIC_UPLOAD_PATH = "uploads/public/"
-
-          [[r2_buckets]]
-          binding = "DRIVE"
-          bucket_name = "iodrive-demo"
-
-          [observability]
-          enabled = true
-          [observability.logs]
-          invocation_logs = true
-          head_sampling_rate = 1
-          [observability.traces]
-          enabled = true
-          head_sampling_rate = 0.01
-          EOF
-
-          if [ -n "${{ secrets.CACHE_KV_ID }}" ]; then
-            cat >> wrangler.toml <<'EOF'
-
-          [[kv_namespaces]]
-          binding = "CACHE_KV"
-          id = "${{ secrets.CACHE_KV_ID }}"
-          EOF
-          fi
-
-          cat >> wrangler.toml <<'EOF'
-
-          [[d1_databases]]
-          binding = "META_DB"
-          database_name = "iodrive-demo-meta"
-          database_id = "e0c9ba9d-4907-469f-a9a0-f4ee1b25bc5d"
-          migrations_dir = "database/migrations"
-
-          [[ratelimits]]
-          name = "RATE_LIMITER"
-          namespace_id = "1002"
-          [ratelimits.simple]
-          limit = 100
-          period = 60
-          EOF
-      - name: Apply demo database migrations
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
-            npx wrangler d1 migrations apply META_DB --remote
+          if output=$(npx wrangler r2 bucket create "$R2_BUCKET" 2>&1); then
+            echo "$output"
+          elif echo "$output" | grep -qi "already exists"; then
+            echo "R2 bucket \"$R2_BUCKET\" already exists, continuing."
           else
-            echo "::warning::CLOUDFLARE_D1_API_TOKEN is not configured; skipping automatic D1 migrations"
+            echo "$output"
+            exit 1
           fi
-      - name: Deploy to demo
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy
+
+      - name: Apply database migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_D1_API_TOKEN || secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler d1 migrations apply META_DB --remote
+
+      - name: Upload application secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ADMIN_PASS: ${{ secrets.ADMIN_PASS }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          TURNSTILE_SECRET: ${{ secrets.TURNSTILE_SECRET }}
+        run: |
+          printf '%s' "$ADMIN_PASS" | npx wrangler secret put ADMIN_PASS
+          printf '%s' "$JWT_SECRET" | npx wrangler secret put JWT_SECRET
+          printf '%s' "$TURNSTILE_SECRET" | npx wrangler secret put TURNSTILE_SECRET
+
+      - name: Deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy
+
       - name: Success
-        run: echo "✅ https://demo.iodevo.com"
+        env:
+          DEPLOY_DOMAIN: ${{ vars.DEPLOY_DOMAIN }}
+        run: |
+          echo "Deployed: https://$DEPLOY_DOMAIN"
