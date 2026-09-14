@@ -6,6 +6,8 @@ import { PROVIDERS, detectPathStyle } from './storage';
 import type { S3Config } from './s3-upload';
 import { createMetadataStore, type MetadataStore } from './metadata-store';
 import { sha256Hex, hmacHex, getSigningKey } from './s3-sign';
+import { createStorageEngine } from './storage-engine';
+import { errorMessage } from './errors';
 
 export const storageConfigRoutes = new Hono<{ Bindings: Env }>();
 
@@ -329,3 +331,74 @@ storageConfigRoutes.post('/status', async (c) => {
   }
 });
 
+
+// ── GET /api/storage/quota — 统计当前存储用量 ──
+
+// R2 免费额度为 10 GB-month（按 GB 显示时与前台 fmt() 的 1024 进制保持一致）
+const DEFAULT_QUOTA_LIMIT_BYTES = 10 * 1024 * 1024 * 1024;
+// 单次请求最多扫描 10 万个对象，避免对象过多时拖垮 Worker
+const QUOTA_SCAN_MAX_PAGES = 100;
+const QUOTA_CACHE_KEY = 'quota:usage:v1';
+
+storageConfigRoutes.get('/quota', async (c) => {
+  const forceRefresh = c.req.query('refresh') === '1';
+  const cache = c.env.CACHE_KV;
+
+  if (cache && !forceRefresh) {
+    try {
+      const hit = await cache.get(QUOTA_CACHE_KEY, 'json');
+      if (hit) return c.json({ ...(hit as Record<string, unknown>), cached: true });
+    } catch { /* 缓存不可用时退回实时统计 */ }
+  }
+
+  let engine;
+  try {
+    engine = await createStorageEngine(c.env);
+  } catch (e) {
+    return c.json({ error: errorMessage(e) }, 500);
+  }
+
+  let usedBytes = 0;
+  let objectCount = 0;
+  let cursor: string | undefined;
+  let pages = 0;
+  let truncated = false;
+
+  try {
+    do {
+      const page = await engine.list('', { limit: 1000, cursor });
+      for (const obj of page.objects) {
+        usedBytes += obj.size || 0;
+        objectCount++;
+      }
+      cursor = page.truncated ? page.cursor : undefined;
+      pages++;
+      if (cursor && pages >= QUOTA_SCAN_MAX_PAGES) { truncated = true; break; }
+    } while (cursor);
+  } catch (e) {
+    return c.json({ error: errorMessage(e) }, 500);
+  }
+
+  const configured = Number(c.env.QUOTA_LIMIT_BYTES);
+  const limitBytes = Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_QUOTA_LIMIT_BYTES;
+
+  const payload = {
+    usedBytes,
+    objectCount,
+    limitBytes,
+    remainingBytes: Math.max(limitBytes - usedBytes, 0),
+    usedPercent: limitBytes > 0 ? usedBytes / limitBytes : 0,
+    truncated,
+    backend: engine.kind,
+    scannedAt: new Date().toISOString(),
+    cached: false,
+  };
+
+  if (cache) {
+    try {
+      await cache.put(QUOTA_CACHE_KEY, JSON.stringify(payload), { expirationTtl: 120 });
+    } catch { /* 缓存写入失败不影响返回 */ }
+  }
+
+  return c.json(payload);
+});

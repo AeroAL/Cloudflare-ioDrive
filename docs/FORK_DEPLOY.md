@@ -147,8 +147,22 @@ npm run dev
 
 `wrangler.toml` 与 `.dev.vars` 已在 `.gitignore` 中，不会被提交。
 
-## 7. 已知上游行为与注意事项
+## 7. 存储用量卡片（本 fork 新增）
 
+控制台顶部有一条用量条，显示 `已用 / 总额`、剩余空间、文件数与百分比进度条，
+上传/删除/移动后会自动刷新，也可点右侧 `↻` 手动刷新。
+
+- 接口：`GET /api/storage/quota`（需登录），返回 `usedBytes / objectCount / limitBytes /
+  remainingBytes / usedPercent / truncated / backend`。
+- 统计方式：通过 R2 绑定列举对象并累加 `size`，因此是**精确且实时**的数字，只统计当前绑定的
+  存储后端（不统计 D1 里的元数据）。
+- 额度默认按 R2 免费额度 **10 GiB** 显示。要改配额（例如你买了套餐或用了别的后端），在
+  `wrangler.toml` 的 `[vars]` 里加 `QUOTA_LIMIT_BYTES = "字节数"`，或设为仓库 Variable。
+- 可选缓存：绑定了 `CACHE_KV` 时结果缓存 120 秒以省去重复列举；点 `↻` 会强制实时重算。
+- 限制：单次最多扫描 10 万个对象，超出时返回的部分数据会在界面标注「已扫描部分对象」。
+  每次刷新消耗 A 类操作（免费额度 100 万次/月，个人使用可忽略）。
+
+## 8. 已知上游行为与注意事项
 | 现象 | 说明 |
 | --- | --- |
 | 非图片下载返回 500 / 点下载无反应 | 未配置 `R2_PUBLIC_DOMAIN`。见 2.3 |
@@ -158,7 +172,7 @@ npm run dev
 | S3 同步失败 | 仅 `console.error`，无重试/回填，镜像可能静默漂移 |
 | `PUBLIC_DOMAIN` | 只影响 imgbed/gallery/random 等公开 URL 辅助；**下载路径只读 `R2_PUBLIC_DOMAIN`**。两者设为同值最稳妥 |
 
-## 8. 与上游同步
+## 9. 与上游同步
 
 ```bash
 git remote add upstream https://github.com/devhunk/Cloudflare-ioDrive.git

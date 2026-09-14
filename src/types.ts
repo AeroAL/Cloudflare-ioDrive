@@ -45,6 +45,9 @@ export interface Env {
   RANDOM_ENABLED?: string;        // 'true' 启用
   RANDOM_ALLOWED_DIRS?: string;   // CSV，留空 = 允许 uploads/ 下所有目录
 
+  // 控制台用量卡片（可选）；不填按 R2 免费额度 10 GiB 计算
+  QUOTA_LIMIT_BYTES?: string;
+
   // 站点标识（用于 KV 缓存和 JWT audience 隔离）
   SITE_ID: string;
 
