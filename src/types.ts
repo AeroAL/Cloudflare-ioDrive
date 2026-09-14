@@ -45,7 +45,7 @@ export interface Env {
   RANDOM_ENABLED?: string;        // 'true' 启用
   RANDOM_ALLOWED_DIRS?: string;   // CSV，留空 = 允许 uploads/ 下所有目录
 
-  // 控制台用量卡片（可选）；不填按 R2 免费额度 10 GiB 计算
+  // 兼容保留：当前后端对象容量诊断的自定义比较上限（不是 Cloudflare 月度账单额度）
   QUOTA_LIMIT_BYTES?: string;
 
   // 站点标识（用于 KV 缓存和 JWT audience 隔离）

@@ -44,7 +44,7 @@ Workers Free allows **10 ms CPU per request**. Two upstream defaults exceeded it
 were fixed in this fork — see `docs/FORK_DEPLOY.md` §8b for measurements:
 
 - `PASSWORD_ITERATIONS` in `src/auth.ts` (210,000 → 5,000; ~79 ms → ~2 ms CPU)
-- the storage-quota scan, which must use `StorageEngine.sumUsage()` rather than
+- The storage-capacity diagnostic endpoint, which must use `StorageEngine.sumUsage()` rather than
   `list()` (the latter calls `toISOString()` per object: ~54 ms at 100k objects)
 
 Also note: external subrequests are capped at 50/request, so batch deletes against an
@@ -71,6 +71,6 @@ Clear them from the dashboard periodically; the free D1 database cap is 500 MB.
 - Production root loads and unauthenticated admin APIs return 401.
 - Admin login works (Turnstile is required on the login endpoint).
 - Upload a **non-image** file and download it — this proves `R2_PUBLIC_DOMAIN` is set.
-- The dashboard storage-quota bar shows a value.
+- The dashboard opens the Cloudflare R2 usage console from the top-right link; it does not display a local quota card.
 - If a Demo is deployed: dashboard loads without credentials, API writes return 403,
   and Demo uses separate D1/R2 resources and a different `SITE_ID`.

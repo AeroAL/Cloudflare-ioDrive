@@ -60,6 +60,7 @@ export function renderDashboard(isDemo: boolean = false): string {
     .icon-btn{background:none;border:1.5px solid var(--border);cursor:pointer;padding:7px;border-radius:8px;font-size:15px;transition:all .2s;color:var(--sub);line-height:1;display:inline-flex;align-items:center;justify-content:center}
     .icon-btn:hover{background:var(--hover);transform:scale(1.08)}
     .icon-btn svg{width:16px;height:16px}
+    .cf-usage-btn{gap:6px;padding:7px 10px;text-decoration:none;font-size:12px;white-space:nowrap}
 
     /* ── Breadcrumbs ── */
     .breadcrumbs{display:flex;align-items:center;gap:4px;padding:8px 24px;font-size:13px;color:var(--sub);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
@@ -134,21 +135,6 @@ export function renderDashboard(isDemo: boolean = false): string {
     .dl-stat .num{font-size:24px;font-weight:700;color:var(--text)}
     .dl-stat .label{font-size:12px;color:var(--sub);margin-top:2px}
 
-    /* ── Storage quota bar ── */
-    .quota-bar{display:flex;align-items:center;gap:12px;padding:9px 24px;border-bottom:1px solid var(--border);background:var(--card);flex-shrink:0;transition:all .35s}
-    .quota-main{flex:1;min-width:0;display:flex;align-items:center;gap:12px}
-    .quota-label{font-size:12px;color:var(--sub);white-space:nowrap}
-    .quota-text{font-size:12px;font-weight:600;color:var(--text);white-space:nowrap}
-    .quota-track{flex:1;height:6px;border-radius:3px;background:var(--bg);border:1px solid var(--border);overflow:hidden;min-width:50px}
-    .quota-fill{height:100%;width:0;border-radius:3px;background:var(--accent);transition:width .5s cubic-bezier(.34,1.56,.64,1)}
-    .quota-fill.warn{background:#f59e0b}
-    .quota-fill.danger{background:#ef4444}
-    .quota-extra{font-size:11px;color:var(--sub);white-space:nowrap}
-    .quota-refresh{background:none;border:none;cursor:pointer;color:var(--sub);font-size:14px;padding:2px 7px;border-radius:6px;line-height:1;transition:all .2s;flex-shrink:0}
-    .quota-refresh:hover{background:var(--hover);color:var(--text)}
-    .quota-refresh.spin{animation:quota-spin .8s linear infinite}
-    @keyframes quota-spin{to{transform:rotate(360deg)}}
-    [data-glass="true"] .quota-bar{background:var(--g-surf-top);backdrop-filter:blur(20px) saturate(1.4);-webkit-backdrop-filter:blur(20px) saturate(1.4);border-bottom:1px solid var(--g-border)}
     .log-search{width:100%;max-width:320px;margin-bottom:16px}
     .log-search input{width:100%;padding:9px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:13px;background:var(--bg);color:var(--text);outline:none}
     .log-search input:focus{border-color:var(--accent);background:var(--card)}
@@ -254,6 +240,7 @@ export function renderDashboard(isDemo: boolean = false): string {
       .topbar{padding:8px 12px;gap:6px}
       .search input{font-size:12px;padding:7px 10px 7px 30px}
       .search svg{left:8px;width:14px;height:14px}
+      .cf-usage-btn span{display:none}
       .breadcrumbs{padding:4px 10px;font-size:11px}
       .list-head,.row{grid-template-columns:22px 22px 1fr;padding-left:10px;padding-right:10px;font-size:13px}
       .row .ic{font-size:16px}
@@ -617,21 +604,15 @@ export function renderDashboard(isDemo: boolean = false): string {
           <button class="icon-btn demo-hidden" onclick="createFolder()" title="新建文件夹">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
           </button>
+          <a class="icon-btn cf-usage-btn" href="https://dash.cloudflare.com/?to=/:account/r2/overview" target="_blank" rel="noopener noreferrer" title="在 Cloudflare 查看 R2 用量">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 5h5v5"/><path d="M10 14L19 5"/><path d="M19 14v4a1 1 0 01-1 1H6a1 1 0 01-1-1V6a1 1 0 011-1h4"/></svg>
+            <span>Cloudflare 用量</span>
+          </a>
           <button class="theme-btn" onclick="toggleTheme()" title="外观" id="theme-btn">🌙</button>
+
           <button class="theme-btn" onclick="toggleGlass()" title="液态玻璃" id="glass-btn" style="font-size:13px;letter-spacing:0.5px">💎</button>
         </div>
       </header>
-
-      <!-- Storage quota bar -->
-      <div class="quota-bar" id="quota-bar" style="display:none">
-        <div class="quota-main">
-          <span class="quota-label">存储用量</span>
-          <span class="quota-text" id="quota-text">—</span>
-          <div class="quota-track"><div class="quota-fill" id="quota-fill"></div></div>
-        </div>
-        <span class="quota-extra" id="quota-extra"></span>
-        <button class="quota-refresh" id="quota-refresh" onclick="loadQuota(true)" title="刷新用量">↻</button>
-      </div>
 
       <!-- Files page -->
       <div id="page-files">
@@ -968,32 +949,6 @@ export function renderDashboard(isDemo: boolean = false): string {
     function checkDlScroll(){var w=document.getElementById('dl-table-wrap'),t=w?w.querySelector('table'):null;if(!w||!t)return;w.classList.toggle('can-scroll',t.scrollWidth>w.clientWidth)}
 
     async function api(p,o){o=o||{};var h=o.headers||{};var t=localStorage.getItem('iodrive_token');if(t)h['Authorization']='Bearer '+t;o.headers=h;try{var r=await fetch(p,o);if(r.status===401&&!IS_DEMO){localStorage.removeItem('iodrive_token');location.href='/login';return}return r}catch(e){console.error('API:',e);return null}}
-
-    // ── 存储用量卡片 ──
-    async function loadQuota(manual){
-      var bar=document.getElementById('quota-bar');
-      if(!bar||IS_DEMO)return;
-      var btn=document.getElementById('quota-refresh');
-      if(btn&&manual)btn.classList.add('spin');
-      try{
-        var r=await api('/api/storage/quota'+(manual?'?refresh=1':''));
-        if(!r||!r.ok)return;
-        var d=await r.json();
-        if(d.error){bar.style.display='none';return}
-        bar.style.display='flex';
-        var pct=Math.max(0,Math.min(100,(d.usedPercent||0)*100));
-        document.getElementById('quota-text').textContent=fmt(d.usedBytes)+' / '+fmt(d.limitBytes);
-        var fill=document.getElementById('quota-fill');
-        // 有数据时保留最小可见宽度，避免少量占用时进度条完全不可见
-        var w=pct>=100?100:(pct>0?Math.max(pct,0.6):0);
-        fill.style.width=w+'%';
-        fill.className='quota-fill'+(pct>=90?' danger':(pct>=70?' warn':''));
-        var extra='剩余 '+fmt(d.remainingBytes)+' · '+d.objectCount+' 个文件';
-        if(d.truncated)extra+=' (已扫描部分对象)';
-        document.getElementById('quota-extra').textContent=extra;
-      }catch(e){console.error('quota:',e)}
-      finally{if(btn)btn.classList.remove('spin')}
-    }
 
     // Navigation
     function go(page){
@@ -1335,7 +1290,7 @@ export function renderDashboard(isDemo: boolean = false): string {
 
     // ── Upload ──
     function pickFile(){if(IS_DEMO)return;var i=document.createElement('input');i.type='file';i.multiple=true;i.onchange=function(){for(var j=0;j<i.files.length;j++)up(i.files[j])};i.click()}
-    async function up(file){if(IS_DEMO)return;document.getElementById('up-panel').classList.add('on');var id='u'+Date.now()+Math.random().toString(36).slice(2,6);document.getElementById('up-list').insertAdjacentHTML('beforeend','<div class="up-item" id="'+id+'"><div class="nm">'+esc(file.name)+' ('+fmt(file.size)+')</div><div class="up-bar"><div class="fl" style="width:0%"></div></div><div class="st">准备...</div></div>');try{if(file.size<=PS)await upS(file,id);else await upM(file,id);st(id,'✅ 完成');loadFiles();loadQuota(true)}catch(e){st(id,'❌ '+e.message)}}
+    async function up(file){if(IS_DEMO)return;document.getElementById('up-panel').classList.add('on');var id='u'+Date.now()+Math.random().toString(36).slice(2,6);document.getElementById('up-list').insertAdjacentHTML('beforeend','<div class="up-item" id="'+id+'"><div class="nm">'+esc(file.name)+' ('+fmt(file.size)+')</div><div class="up-bar"><div class="fl" style="width:0%"></div></div><div class="st">准备...</div></div>');try{if(file.size<=PS)await upS(file,id);else await upM(file,id);st(id,'✅ 完成');loadFiles()}catch(e){st(id,'❌ '+e.message)}}
     function xhrUp(url,fd,id){return new Promise(function(ok,no){var x=new XMLHttpRequest(),t0=Date.now();x.open('POST',url);var tk=localStorage.getItem('iodrive_token');if(tk)x.setRequestHeader('Authorization','Bearer '+tk);x.upload.onprogress=function(e){if(e.lengthComputable){var el=(Date.now()-t0)/1000,sp=el>0?e.loaded/el:0,pct=Math.round(e.loaded/e.total*100),rm=sp>0?(e.total-e.loaded)/sp:0;prog(id,pct);st(id,fmtS(sp)+' · '+pct+'% · 剩余 '+fmtE(rm))}};x.onload=function(){if(x.status>=200&&x.status<300){try{ok(JSON.parse(x.responseText))}catch{ok(x.responseText)}}else{try{no(new Error(JSON.parse(x.responseText).error))}catch{no(new Error('失败 '+x.status))}}};x.onerror=function(){no(new Error('网络错误'))};x.send(fd)})}
     async function upS(f,id){var fd=new FormData();fd.append('file',f);fd.append('path',currentPath);await xhrUp('/api/upload/single',fd,id)}
     async function upM(f,id){var r=await api('/api/upload/init',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:f.name,size:f.size,path:currentPath})});if(!r||!r.ok)throw new Error('初始化失败');var d=await r.json(),uid=d.uploadId,key=d.key;var tp=Math.ceil(f.size/PS),parts=[],pp=new Array(tp).fill(0),t0=Date.now(),q=[];for(var i=0;i<tp;i++){(function(pi,pn){var s=pi*PS,e=Math.min(s+PS,f.size),ch=f.slice(s,e);q.push(function(){return new Promise(function(ok,no){var fd=new FormData();fd.append('uploadId',uid);fd.append('key',key);fd.append('partNumber',String(pn));fd.append('chunk',ch);var x=new XMLHttpRequest();x.open('POST','/api/upload/part');var tk=localStorage.getItem('iodrive_token');if(tk)x.setRequestHeader('Authorization','Bearer '+tk);x.upload.onprogress=function(ev){if(ev.lengthComputable){pp[pi]=ev.loaded;var td=0;for(var j=0;j<pp.length;j++)td+=pp[j];var el=(Date.now()-t0)/1000,sp=el>0?td/el:0,pct=Math.round(td/f.size*100),rm=sp>0?(f.size-td)/sp:0;prog(id,pct);st(id,fmtS(sp)+' · '+pct+'% (分片 '+pn+'/'+tp+') · '+fmtE(rm))}};x.onload=function(){if(x.status>=200&&x.status<300){parts.push({partNumber:pn,etag:JSON.parse(x.responseText).etag});ok()}else{no(new Error('分片'+pn+'失败'))}};x.onerror=function(){no(new Error('网络错误'))};x.send(fd)})})})(i,i+1)}try{await conc(q,MC)}catch(e){api('/api/upload/abort',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uploadId:uid,key:key})}).catch(function(){});throw e}parts.sort(function(a,b){return a.partNumber-b.partNumber});var cr=await api('/api/upload/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uploadId:uid,key:key,parts:parts})});if(!cr||!cr.ok)throw new Error('完成失败')}
@@ -1415,7 +1370,7 @@ export function renderDashboard(isDemo: boolean = false): string {
       var keys=Array.from(selectedKeys);
       var delUrl='/api/files/batch-delete'+(currentBackend?'?backend='+encodeURIComponent(currentBackend):'');
       var r=await api(delUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({keys})});
-      if(r&&r.ok){clearSelection();loadFiles();loadQuota(true)}
+      if(r&&r.ok){clearSelection();loadFiles()}
     }
 
     async function batchShare(){
@@ -1462,7 +1417,7 @@ export function renderDashboard(isDemo: boolean = false): string {
         var keys=Array.from(selectedKeys);
         var moveUrl='/api/files/move'+(currentBackend?'?backend='+encodeURIComponent(currentBackend):'');
         var r2=await api(moveUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({keys:keys,targetPath:target})});
-        if(r2&&r2.ok){o.remove();clearSelection();loadFiles();loadQuota(true)}
+        if(r2&&r2.ok){o.remove();clearSelection();loadFiles()}
       };
       o.addEventListener('click',function(e){if(e.target===o)o.remove()});
     }
@@ -2017,7 +1972,6 @@ export function renderDashboard(isDemo: boolean = false): string {
     }
 
     loadFiles();
-    loadQuota(false);
   </script>
 </body>
 </html>`;

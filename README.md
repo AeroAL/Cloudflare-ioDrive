@@ -246,15 +246,11 @@ chmod +x setup.sh
 | 上传来源 | `dashboard` / `public` / `upload-key` |
 | 上传链接标签 | 通过哪个上传链接上传 |
 
-### 📈 存储用量卡片（本 fork 新增）
+### ☁️ Cloudflare 用量查询
 
-控制台顶栏下方常驻一条用量条，显示 `已用 / 总额`、剩余空间、文件数与百分比进度条：
+仪表盘右上角提供「Cloudflare 用量」入口，会在新标签页打开 Cloudflare 官方 R2 控制台。账户级 R2 存储用量、10 GB-month 免费额度、操作量和账单状态以 Cloudflare 控制台显示为准；本项目不在 Worker 内把桶内对象大小冒充为当月计费用量。
 
-- 上传、批量删除、移动后**自动刷新**，也可点右侧 `↻` 手动刷新
-- 占用超过 70% 转黄、超过 90% 转红
-- 默认按 R2 免费额度显示 **10 GiB**；可用 `QUOTA_LIMIT_BYTES` 环境变量改为你的实际配额
-- 数字通过列举存储对象累加得出，**精确且实时**（非估算）；只统计当前绑定的存储后端
-- 单次最多扫描 10 万个对象，超出时界面会标注「已扫描部分对象」
+如需查看当前网盘后端的对象容量诊断，可直接调用受 JWT 保护的 `GET /api/storage/quota`，但该接口不是 Cloudflare 账户级月度账单查询，也不代表真实的 GB-month 消耗。
 
 ### ☁️ 多存储后端
 
@@ -619,7 +615,6 @@ npm run deploy
 | `R2_BUCKET` | R2 存储桶名称 | `iodrive` |
 | `R2_ACCOUNT_ID` | Cloudflare 账户 ID | `YOUR_ACCOUNT_ID` |
 | `TURNSTILE_SITE_KEY` | Turnstile 站点密钥（公开） | `YOUR_TURNSTILE_SITE_KEY` |
-| `QUOTA_LIMIT_BYTES` | 用量卡片显示的配额上限（字节），不填按 R2 免费额度 10 GiB（本 fork 新增） | `10737418240` |
 
 #### 必需密钥（wrangler secret）
 
@@ -1235,7 +1230,7 @@ curl -L https://drive.example.com/random?dir=uploads/photos&type=img
 
 ### 存储配置 API（需要 JWT）
 
-用于在控制台中动态管理存储后端，以及读取用量统计。
+用于在控制台中动态管理存储后端，以及提供当前存储后端的容量诊断接口。Cloudflare 账户级 R2 月度用量和账单请使用仪表盘右上角的官方入口查询。
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -1246,15 +1241,15 @@ curl -L https://drive.example.com/random?dir=uploads/photos&type=img
 | `DELETE` | `/api/storage/backends/:name` | 删除后端 |
 | `POST` | `/api/storage/test` | 测试连接 |
 | `POST` | `/api/storage/status` | 检测指定后端状态 |
-| `GET` | `/api/storage/quota` | 获取用量统计（本 fork 新增） |
+| `GET` | `/api/storage/quota` | 获取当前后端对象容量诊断（本 fork 新增） |
 
 #### `GET /api/storage/quota`
 
-返回当前存储后端的用量统计。
+返回当前存储后端的对象容量诊断。该接口通过列举对象累加大小和数量，**不查询 Cloudflare 账户级 R2 月度用量，也不代表 10 GB-month 的实际计费消耗**。Cloudflare 官方用量和账单请使用仪表盘右上角的 Cloudflare 入口。
 
 **查询参数：**
 
-- `refresh=1`（可选）：跳过缓存，强制实时重算
+- `refresh=1`（可选）：跳过缓存，强制重新扫描当前存储后端
 
 **成功响应：**
 
@@ -1273,7 +1268,7 @@ curl -L https://drive.example.com/random?dir=uploads/photos&type=img
 ```
 
 - `truncated`：为 `true` 时表示对象数超过 10 万，统计不完整
-- `limitBytes`：来自 `QUOTA_LIMIT_BYTES` 环境变量，未设置则默认 10 GiB
+- `limitBytes`：当前后端容量诊断使用的应用自定义比较值，来自 `QUOTA_LIMIT_BYTES`；未设置时使用内部默认值，仅用于诊断展示，不是 Cloudflare 账户配额
 - 绑定了 `CACHE_KV` 时结果缓存 120 秒；`refresh=1` 可绕过
 
 ### WebDAV

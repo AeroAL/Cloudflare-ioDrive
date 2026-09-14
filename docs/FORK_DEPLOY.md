@@ -147,23 +147,11 @@ npm run dev
 
 `wrangler.toml` 与 `.dev.vars` 已在 `.gitignore` 中，不会被提交。
 
-## 7. 存储用量卡片（本 fork 新增）
+## 7. Cloudflare 用量查询
 
-控制台顶部有一条用量条，显示 `已用 / 总额`、剩余空间、文件数与百分比进度条，
-上传/删除/移动后会自动刷新，也可点右侧 `↻` 手动刷新。
+仪表盘右上角的「Cloudflare 用量」按钮会在新标签页打开 Cloudflare 官方 R2 控制台。账户级 R2 存储用量、10 GB-month 免费额度、操作量和账单状态，以 Cloudflare 控制台显示为准；本 Worker 不把桶内对象大小冒充为本月计费用量。
 
-- 接口：`GET /api/storage/quota`（需登录），返回 `usedBytes / objectCount / limitBytes /
-  remainingBytes / usedPercent / truncated / backend`。
-- 统计方式：通过 R2 绑定列举对象并累加 `size`，因此是**精确且实时**的数字，只统计当前绑定的
-  存储后端（不统计 D1 里的元数据）。
-- 额度默认按 R2 免费额度 **10 GiB** 显示。要改配额（例如你买了套餐或用了别的后端），在
-  `wrangler.toml` 的 `[vars]` 里加 `QUOTA_LIMIT_BYTES = "字节数"`，或设为仓库 Variable。
-- 可选缓存：绑定了 `CACHE_KV` 时结果缓存 120 秒以省去重复列举；点 `↻` 会强制实时重算。
-- 实现细节：统计走 `StorageEngine.sumUsage()`，**只累加 `size` 与个数**。不要改回用 `list()`
-  来统计——`list()` 会为每个对象调用 `toISOString()`，实测在 Workers 运行时下 1 万对象约 7ms、
-  5 万对象约 27ms、10 万对象约 54ms CPU，会撞破免费版 10ms 上限；`sumUsage()` 同样规模仅约 3ms。
-- 限制：单次最多扫描 10 万个对象，超出时返回的部分数据会在界面标注「已扫描部分对象」。
-  每次刷新消耗 A 类操作（免费额度 100 万次/月，个人使用可忽略）。
+项目仍保留受 JWT 保护的 `GET /api/storage/quota` 诊断接口。它只通过列举当前存储后端对象，返回对象大小、对象数量和扫描状态，**不是** Cloudflare 账户级月度用量查询，也不代表真实 GB-month 消耗。启用 `CACHE_KV` 时该诊断结果可能缓存 120 秒，单次最多扫描 10 万个对象。
 
 ## 8. 已知上游行为与注意事项
 | 现象 | 说明 |
@@ -182,9 +170,7 @@ npm run dev
 
 **已修复：**
 
-- **用量卡片扫描（本 fork 引入的缺陷，已修）**：原先用 `list()` 统计，每个对象都会跑
-  `toISOString()`，实测 1 万对象 7ms、5 万 27ms、10 万 **54ms**，约 1.5 万对象就会超 10ms 上限。
-  已改为 `sumUsage()` 只累加 `size`，同规模约 **3ms**。
+- **用量诊断扫描性能**：`StorageEngine.sumUsage()` 只累加对象 `size` 和个数，避免旧实现对每个对象调用 `toISOString()`；这条接口仅供后端容量诊断，不用于 Cloudflare 月度计费用量。
 
 **你的当前配置下不适用（但改配置后会踩）：**
 
