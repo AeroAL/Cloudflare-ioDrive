@@ -9,7 +9,9 @@
 </h3>
 
 <div align="center">
-  <a href="https://demo.iodevo.com">演示站</a>
+  本仓库是 <a href="https://github.com/devhunk/Cloudflare-ioDrive">devhunk/Cloudflare-ioDrive</a> 的 fork，
+  已适配<strong>单环境部署</strong>与 Cloudflare 免费版限制。<br>
+  部署、配置与已知问题请先阅读 <a href="./docs/FORK_DEPLOY.md">Fork 部署指南</a>。
 </div>
 
 <p align="center">
@@ -18,10 +20,10 @@
 
 <p align="center">
 
-![License](https://img.shields.io/github/license/Mareixcode/Cloudflare-ioDrive?style=for-the-badge)
-![Stars](https://img.shields.io/github/stars/Mareixcode/Cloudflare-ioDrive?style=for-the-badge)
-![Forks](https://img.shields.io/github/forks/Mareixcode/Cloudflare-ioDrive?style=for-the-badge)
-![Issues](https://img.shields.io/github/issues/Mareixcode/Cloudflare-ioDrive?style=for-the-badge)
+![License](https://img.shields.io/github/license/AeroAL/Cloudflare-ioDrive?style=for-the-badge)
+![Stars](https://img.shields.io/github/stars/AeroAL/Cloudflare-ioDrive?style=for-the-badge)
+![Forks](https://img.shields.io/github/forks/AeroAL/Cloudflare-ioDrive?style=for-the-badge)
+![Issues](https://img.shields.io/github/issues/AeroAL/Cloudflare-ioDrive?style=for-the-badge)
 
 </p>
 
@@ -66,12 +68,13 @@ ioDrive 是一个完全运行在 Cloudflare 边缘网络上的轻量级文件管
 ## 🚀 一键部署
 
 <p align="center">
-  <a href="https://github.com/Mareixcode/Cloudflare-Drive/fork">
+  <a href="https://github.com/AeroAL/Cloudflare-ioDrive/fork">
     <img src="https://img.shields.io/badge/⚡_Deploy_to_Cloudflare-F6821F?style=for-the-badge&logo=cloudflare&logoColor=white" alt="Deploy to Cloudflare" height="48">
   </a>
 </p>
 
-> Cloudflare 没有像 Vercel 那样的原生 Deploy Button，因此采用 **Fork → 配置 → 一键部署** 模式。只需点击上方按钮 Fork 仓库，然后在 Actions 页面点击「Run workflow」即可完成部署。
+> Cloudflare 没有像 Vercel 那样的原生 Deploy Button，因此采用 **Fork → 配置 → 推送部署** 模式。
+> 配置好仓库的 Secrets 与 Variables 后，推送到 `main` 即自动部署。
 
 <details>
 <summary><b>📖 完整部署流程（点击展开）</b></summary>
@@ -80,28 +83,43 @@ ioDrive 是一个完全运行在 Cloudflare 边缘网络上的轻量级文件管
 
 点击上方 **⚡ Deploy to Cloudflare** 按钮，将仓库 Fork 到你的 GitHub 账号。
 
-### 第二步：配置 GitHub Secrets
+### 第二步：配置 GitHub Secrets 与 Variables
 
-进入你 Fork 后的仓库 → **Settings** → **Secrets and variables** → **Actions**，添加以下 Secrets：
+进入你 Fork 后的仓库 → **Settings** → **Secrets and variables** → **Actions**。
 
-| Secret 名称 | 说明 | 获取方式 |
-|-------------|------|----------|
-| `CLOUDFLARE_API_TOKEN` | Cloudflare API 令牌 | [创建令牌](https://dash.cloudflare.com/profile/api-tokens) → 使用「编辑 Cloudflare Workers」模板 |
-| `CLOUDFLARE_ACCOUNT_ID` | 账户 ID | Dashboard 首页 → 右侧 API 区域 |
-| `ADMIN_PASS` | 管理员密码 | 自行设置 |
-| `JWT_SECRET` | JWT 签名密钥 | 运行 `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
-| `TURNSTILE_SECRET` | Turnstile 密钥 | Turnstile → 你的站点 → API 密钥 |
-| `TURNSTILE_SITE_KEY` | Turnstile 站点密钥 | Turnstile → 你的站点 → 站点密钥 |
-| `R2_ACCESS_KEY` | R2 Access Key | R2 → 管理 R2 API 令牌 |
-| `R2_SECRET_KEY` | R2 Secret Key | 同上 |
+**Secrets**（必需的 7 个）：
 
-### 第三步：一键部署
+| Secret 名称 | 说明 |
+|-------------|------|
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API 令牌，需 Workers 脚本 / D1 / Workers R2 存储 编辑，以及 Workers 路由 编辑、区域 读取 |
+| `CLOUDFLARE_ACCOUNT_ID` | 账户 ID |
+| `META_DB_ID` | D1 数据库 ID |
+| `ADMIN_PASS` | 管理员密码 |
+| `JWT_SECRET` | JWT 签名密钥，用 `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` 生成 |
+| `TURNSTILE_SITE_KEY` | Turnstile 站点密钥 |
+| `TURNSTILE_SECRET` | Turnstile 密钥 |
 
-进入仓库 → **Actions** → **🚀 一键部署 ioDrive** → **Run workflow**，填写配置参数后点击运行。
+**Variables**（必需的 6 个）：
+
+| Variable 名称 | 示例 | 说明 |
+|---------------|------|------|
+| `WORKER_NAME` | `iodrive` | Worker 名称 |
+| `SITE_ID` | `production` | 站点标识，改动会使已登录会话失效 |
+| `ADMIN_USER` | `admin` | 管理员用户名 |
+| `DEPLOY_DOMAIN` | `drive.example.com` | Worker 对外域名，不带 `https://` |
+| `R2_BUCKET` | `iodrive-prod` | R2 存储桶名称 |
+| `R2_PUBLIC_DOMAIN` | `r2.example.com` | R2 公开访问域名，**不配置则非图片文件无法下载** |
+
+> 可选：`CLOUDFLARE_D1_API_TOKEN`（D1 编辑权限，用于 CI 自动迁移）、`CACHE_KV_ID`（启用 KV 缓存）、
+> `RATE_LIMITER_NAMESPACE_ID`（启用限流绑定）。
+
+### 第三步：触发部署
+
+推送到 `main` 分支即自动部署；也可在 **Actions** → **Build and Deploy to Cloudflare** → **Run workflow** 手动触发。
 
 ### 后续更新
 
-配置完成后，每次推送到 `main` 分支都会自动触发部署（通过 `deploy.yml` 工作流）。
+每次推送到 `main` 都会自动执行「类型检查 → 生成配置 → 应用数据库迁移 → 上传密钥 → 部署」。
 
 </details>
 
@@ -110,8 +128,8 @@ ioDrive 是一个完全运行在 Cloudflare 边缘网络上的轻量级文件管
 交互式引导配置，自动生成配置文件，一条命令完成部署：
 
 ```bash
-git clone https://github.com/Mareixcode/Cloudflare-Drive.git
-cd Cloudflare-Drive
+git clone https://github.com/AeroAL/Cloudflare-ioDrive.git
+cd Cloudflare-ioDrive
 chmod +x setup.sh
 ./setup.sh
 ```
@@ -124,32 +142,27 @@ chmod +x setup.sh
 - ✅ 生成 `wrangler.toml` 和 `.dev.vars`
 - ✅ 自动创建 R2 存储桶并部署
 
-### 方式二：GitHub Actions 一键部署（推荐持续部署）
+> ⚠️ `setup.sh` 由上游维护，它会额外推送 `R2_ACCESS_KEY` / `R2_SECRET_KEY` 这两个密钥。
+> 使用 R2 原生绑定时这两个字段**不会被读取**，可以忽略；见
+> [Fork 部署指南](./docs/FORK_DEPLOY.md)。
 
-> ⚠️ 使用前须先 **[Fork 本仓库](https://github.com/Mareixcode/Cloudflare-Drive/fork)** 到你的 GitHub 账号
+### 方式二：GitHub Actions 自动部署（推荐持续部署）
 
-**第一步：配置 GitHub Secrets**
+> ⚠️ 使用前须先 **[Fork 本仓库](https://github.com/AeroAL/Cloudflare-ioDrive/fork)** 到你的 GitHub 账号
 
-进入仓库 → **Settings** → **Secrets and variables** → **Actions**，添加以下 Secrets：
+**第一步：配置 GitHub Secrets 与 Variables**
 
-| Secret 名称 | 说明 | 获取方式 |
-|-------------|------|----------|
-| `CLOUDFLARE_API_TOKEN` | Cloudflare API 令牌 | [创建令牌](https://dash.cloudflare.com/profile/api-tokens) → 使用「编辑 Cloudflare Workers」模板 |
-| `CLOUDFLARE_ACCOUNT_ID` | 账户 ID | Dashboard 首页 → 右侧 API 区域 |
-| `ADMIN_PASS` | 管理员密码 | 自行设置 |
-| `JWT_SECRET` | JWT 签名密钥 | 运行 `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
-| `TURNSTILE_SECRET` | Turnstile 密钥 | Turnstile → 你的站点 → API 密钥 |
-| `TURNSTILE_SITE_KEY` | Turnstile 站点密钥 | Turnstile → 你的站点 → 站点密钥 |
-| `R2_ACCESS_KEY` | R2 Access Key | R2 → 管理 R2 API 令牌 |
-| `R2_SECRET_KEY` | R2 Secret Key | 同上 |
+所需的 7 个 Secrets 与 6 个 Variables 清单见上文
+[「第二步：配置 GitHub Secrets 与 Variables」](#第二步配置-github-secrets-与-variables)。
 
 **第二步：触发部署**
 
-进入仓库 → **Actions** → **🚀 一键部署 ioDrive** → **Run workflow**，填写配置参数后点击运行。
+推送到 `main` 分支即自动部署；也可进入仓库 → **Actions** →
+**Build and Deploy to Cloudflare** → **Run workflow** 手动触发。
 
 **后续更新**
 
-配置完成后，每次推送到 `main` 分支都会自动触发部署（通过已有的 `deploy.yml` 工作流）。
+配置完成后，每次推送到 `main` 分支都会自动触发部署（通过 `deploy.yml` 工作流）。
 
 ---
 
@@ -233,6 +246,16 @@ chmod +x setup.sh
 | 上传来源 | `dashboard` / `public` / `upload-key` |
 | 上传链接标签 | 通过哪个上传链接上传 |
 
+### 📈 存储用量卡片（本 fork 新增）
+
+控制台顶栏下方常驻一条用量条，显示 `已用 / 总额`、剩余空间、文件数与百分比进度条：
+
+- 上传、批量删除、移动后**自动刷新**，也可点右侧 `↻` 手动刷新
+- 占用超过 70% 转黄、超过 90% 转红
+- 默认按 R2 免费额度显示 **10 GiB**；可用 `QUOTA_LIMIT_BYTES` 环境变量改为你的实际配额
+- 数字通过列举存储对象累加得出，**精确且实时**（非估算）；只统计当前绑定的存储后端
+- 单次最多扫描 10 万个对象，超出时界面会标注「已扫描部分对象」
+
 ### ☁️ 多存储后端
 
 - **Cloudflare R2**（推荐）：零出口流量费，Cloudflare 原生存储
@@ -285,7 +308,8 @@ chmod +x setup.sh
   - RaiDrive / Cyberduck / Mountain Duck：填入 URL + 用户名密码
 - **复用现有逻辑**：WebDAV 内部用短期 JWT（5 分钟）调 `POST /api/upload/single`、`DELETE /api/files/{key}` 等 API，自动复用上传同步 + 日志 + 审核
 - **路径安全**：拒绝 `_` 前缀（内部文件）、`..` 反向穿越、反斜杠、URL 双重编码
-- **demo 域拦截**：`demo.iodevo.com` 调 WebDAV 一律 403
+- **demo 域拦截**：`demo.iodevo.com` 调 WebDAV 一律 403（该主机名硬编码在 `src/demo-mode.ts`；
+  对自建部署无影响，除非你恰好也用它）
 
 ### 🎲 随机图片 API
 
@@ -439,12 +463,13 @@ Dashboard 上传                   公共上传 / 上传链接
 - 内置 CORS、中间件等开箱即用
 - 支持 JSX 和模板字符串渲染 HTML
 
-### 为什么不用数据库？
+### 为什么用 D1 存元数据？
 
-- R2 的 `list()` / `get()` / `put()` / `delete()` 操作足以覆盖元数据 CRUD
-- 无需额外配置 D1 或外部数据库
-- 减少依赖，降低运维复杂度
-- JSON 文件存储灵活，方便导出和备份
+> 注：早期版本把元数据以 JSON 文件存进 R2，现已迁移到 D1。以下为当前设计。
+
+- **D1 是必需绑定**（`META_DB`），单表 key-value 模式，存储账号、分享、日志、上传链接、分片会话等
+- 相比在 R2 里读写 JSON 文件，D1 提供索引与原子计数（如上传链接已用次数），也避免列表操作的额外开销
+- 文件本体仍在 R2 / S3 兼容存储中，D1 只放元数据
 
 ---
 
@@ -461,8 +486,8 @@ Dashboard 上传                   公共上传 / 上传链接
 ### 第一步：克隆项目
 
 ```bash
-git clone https://github.com/Mareixcode/Cloudflare-Drive.git
-cd Cloudflare-Drive
+git clone https://github.com/AeroAL/Cloudflare-ioDrive.git
+cd Cloudflare-ioDrive
 npm install
 ```
 
@@ -594,6 +619,7 @@ npm run deploy
 | `R2_BUCKET` | R2 存储桶名称 | `iodrive` |
 | `R2_ACCOUNT_ID` | Cloudflare 账户 ID | `YOUR_ACCOUNT_ID` |
 | `TURNSTILE_SITE_KEY` | Turnstile 站点密钥（公开） | `YOUR_TURNSTILE_SITE_KEY` |
+| `QUOTA_LIMIT_BYTES` | 用量卡片显示的配额上限（字节），不填按 R2 免费额度 10 GiB（本 fork 新增） | `10737418240` |
 
 #### 必需密钥（wrangler secret）
 
@@ -602,8 +628,8 @@ npm run deploy
 | `ADMIN_PASS` | 管理员密码 |
 | `JWT_SECRET` | JWT HS256 签名密钥（建议 64 位随机字符串） |
 | `TURNSTILE_SECRET` | Turnstile 密钥（用于服务端验证） |
-| `R2_ACCESS_KEY` | R2 Access Key（用于生成预签名下载链接） |
-| `R2_SECRET_KEY` | R2 Secret Key（用于生成预签名下载链接） |
+| `R2_ACCESS_KEY` | ⚠️ **残留字段，源码未读取**。使用 R2 原生绑定时无需配置 |
+| `R2_SECRET_KEY` | ⚠️ **残留字段，源码未读取**。同上 |
 
 #### 可选变量
 
@@ -691,12 +717,13 @@ app.use('/api/*', cors({
 drive/
 ├── .github/
 │   └── workflows/
-│       ├── deploy.yml                # 主分支校验并部署生产与只读演示
-│       └── deploy-button.yml         # Fork 后手动部署
+│       ├── deploy.yml                # 单环境部署（推送到 main 自动触发）
+│       └── deploy-button.yml         # 参数化手动部署（workflow_dispatch）
 ├── database/
 │   └── migrations/
 │       └── 0001_init.sql             # D1 初始版本化迁移
 ├── docs/
+│   ├── FORK_DEPLOY.md                # Fork 部署指南（含免费版限制与已知问题）
 │   ├── MAINTENANCE.md                # 维护、迁移与发布约定
 │   ├── prototypes/
 │   │   └── pen.html                  # 历史界面原型
@@ -1206,6 +1233,49 @@ curl -L https://drive.example.com/random?dir=uploads/photos&type=img
 
 删除单条审核日志。
 
+### 存储配置 API（需要 JWT）
+
+用于在控制台中动态管理存储后端，以及读取用量统计。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/storage/providers` | 获取支持的存储提供商预设 |
+| `GET` | `/api/storage/backends` | 获取已配置的后端列表（密钥脱敏） |
+| `POST` | `/api/storage/backends` | 新增后端 |
+| `PUT` | `/api/storage/backends/:name` | 修改后端 |
+| `DELETE` | `/api/storage/backends/:name` | 删除后端 |
+| `POST` | `/api/storage/test` | 测试连接 |
+| `POST` | `/api/storage/status` | 检测指定后端状态 |
+| `GET` | `/api/storage/quota` | 获取用量统计（本 fork 新增） |
+
+#### `GET /api/storage/quota`
+
+返回当前存储后端的用量统计。
+
+**查询参数：**
+
+- `refresh=1`（可选）：跳过缓存，强制实时重算
+
+**成功响应：**
+
+```json
+{
+  "usedBytes": 1234567,
+  "objectCount": 42,
+  "limitBytes": 10737418240,
+  "remainingBytes": 10736183773,
+  "usedPercent": 0.000115,
+  "truncated": false,
+  "backend": "r2",
+  "scannedAt": "2026-09-14T06:07:47.895Z",
+  "cached": false
+}
+```
+
+- `truncated`：为 `true` 时表示对象数超过 10 万，统计不完整
+- `limitBytes`：来自 `QUOTA_LIMIT_BYTES` 环境变量，未设置则默认 10 GiB
+- 绑定了 `CACHE_KV` 时结果缓存 120 秒；`refresh=1` 可绕过
+
 ### WebDAV
 
 `/dav/*` 路径（无需 JWT，使用 HTTP Basic）：
@@ -1256,45 +1326,68 @@ npm run deploy
 
 > ⚠️ **前置步骤**：使用此方式前，你须先 **Fork 本仓库** 到你的 GitHub 账号下。否则将无权配置 Secrets，无法触发自动部署。
 
-项目已配置 CI/CD 流水线（`.github/workflows/deploy.yml`）：
+本 fork 的 CI/CD 流水线（`.github/workflows/deploy.yml`）已改造为**单环境部署**：
 
-- **推送到 `main` 分支** → 校验通过后，依次迁移并部署生产环境和只读演示环境
-- **创建 PR 到 `main` 或 `demo`** → 仅运行类型检查和 dry-run 构建
-- **远端 `demo` 分支** → 作为历史分支保留，不触发部署
+- **推送到 `main` 分支** → 类型检查通过后，依次生成配置、创建/复用 R2 存储桶、应用 D1 迁移、上传密钥、部署
+- **创建 PR 到 `main`** → 仅运行类型检查和 dry-run 构建
+- **手动触发** → Actions 页面 **Run workflow**
+
+> 上游版本的 `deploy.yml` 会额外部署一个只读演示环境，且硬编码了上游作者的域名与 D1 数据库 ID，
+> 在 fork 中必然失败。本 fork 已移除该任务。
 
 #### 配置 GitHub Actions
 
-1. Fork 本仓库后，在你自己的仓库中进入 **Settings** → **Secrets and variables** → **Actions**，添加以下 Secrets：
-   
-   - `CLOUDFLARE_API_TOKEN`：Cloudflare API 令牌（Workers、D1、R2 部署权限）
+1. Fork 本仓库后，在你自己的仓库中进入 **Settings** → **Secrets and variables** → **Actions**。
+
+   **必需的 Secrets：**
+
+   - `CLOUDFLARE_API_TOKEN`：Cloudflare API 令牌，需 Workers 脚本 / D1 / Workers R2 存储 编辑，
+     以及 Workers 路由 编辑、区域 读取
    - `CLOUDFLARE_ACCOUNT_ID`：Cloudflare 账户 ID
-   - `META_DB_ID`：生产 D1 数据库 ID
-   - `CLOUDFLARE_D1_API_TOKEN`：可选；启用 CI 自动迁移时使用，需 D1 Edit 权限
-   - `ADMIN_PASS`：生产管理员密码
-   - `JWT_SECRET`：生产 JWT 签名密钥
-   - `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET`：可选的人机验证配置
-   - `CACHE_KV_ID`：可选的缓存 KV 命名空间 ID
-   - R2/S3 访问密钥：仅在启用预签名下载或 S3 后端时配置
+   - `META_DB_ID`：D1 数据库 ID
+   - `ADMIN_PASS`：管理员密码
+   - `JWT_SECRET`：JWT 签名密钥
+   - `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET`：Turnstile 人机验证密钥
+
+   **必需的 Variables：**
+
+   - `WORKER_NAME`：Worker 名称（例 `iodrive`）
+   - `SITE_ID`：站点标识（例 `production`）；改动会使已登录会话失效
+   - `ADMIN_USER`：管理员用户名（例 `admin`）
+   - `DEPLOY_DOMAIN`：Worker 对外域名（例 `drive.example.com`），不带 `https://`
+   - `R2_BUCKET`：R2 存储桶名称
+   - `R2_PUBLIC_DOMAIN`：R2 公开访问域名（例 `r2.example.com`）；
+     **不配置则非图片文件无法下载**
+
+   **可选：** `CLOUDFLARE_D1_API_TOKEN`（D1 编辑权限，用于 CI 自动迁移）、
+   `CACHE_KV_ID`（启用 KV 缓存）、`RATE_LIMITER_NAMESPACE_ID`（启用限流绑定）
 
 2. 创建 Cloudflare API Token：
    
    - 进入 [Cloudflare Dashboard](https://dash.cloudflare.com/) → **我的个人资料** → **API 令牌**
-   - 创建令牌 → 使用「编辑 Cloudflare Workers」模板
-   - 选择你的账户和区域
+   - 创建令牌 → **Create Custom Token**，按下表添加权限
+   - 账户级：`Workers 脚本:编辑`、`D1:编辑`、`Workers R2 存储:编辑`
+   - 区域级：`Workers 路由:编辑`、`区域:读取`（区域选你的域名）
 
 3. 获取 Cloudflare Account ID：
    
    - 进入 [Cloudflare Dashboard](https://dash.cloudflare.com/) → 选择你的域名 → **概览** 页面右侧可以看到 **账户 ID**
 
-### 演示环境
+> 完整的资源创建步骤、验收清单与免费版已知限制，见
+> [Fork 部署指南](./docs/FORK_DEPLOY.md)。
 
-官方 Demo 是无账号、只读的模拟数据环境。它通过 `DEMO_MODE=true` 显式启用，拒绝所有写请求，并使用独立的 `SITE_ID`、D1 与 R2；不要向 Demo Worker 注入生产密钥。
+### 演示环境（可选，本 fork 未部署）
+
+上游的官方 Demo 是无账号、只读的模拟数据环境，通过 `DEMO_MODE=true` 显式启用，拒绝所有写请求，
+并使用独立的 `SITE_ID`、D1 与 R2。本 fork 的 CI 不部署演示环境；`src/demo-mode.ts` 相关代码
+仍然保留，如需自建请参考 `wrangler.toml.example`，并务必使用独立资源且不要注入生产密钥。
 
 ### 部署后检查
 
 - [ ] 访问你的域名，确认管理后台正常加载
 - [ ] 使用配置的管理员账号登录
 - [ ] 测试文件上传、分享、下载流程
+- [ ] **上传一个非图片文件（如 .zip）并下载**——验证 `R2_PUBLIC_DOMAIN` 已正确配置
 - [ ] 测试公共上传页面 `/upload`
 - [ ] 检查 R2 存储桶中的文件是否正常写入
 
@@ -1364,21 +1457,21 @@ npm run deploy
 
 ## ⭐ Star History
 
-如果这个项目对你有帮助，欢迎点一个 Star ⭐
+如果这个项目对你有帮助，欢迎给上游项目点一个 Star ⭐
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Mareixcode/Cloudflare-Drive&type=Date)](https://star-history.com/#Mareixcode/Cloudflare-Drive&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=devhunk/Cloudflare-ioDrive&type=Date)](https://star-history.com/#devhunk/Cloudflare-ioDrive&Date)
 
 ---
 
 ## 📬 联系方式
 
-* ​**开发者**​: MareixHunk
-* ​**Email**​: [ceohunk@gmail.com](mailto:ceohunk@gmail.com)
-* ​**GitHub**​: [MareixHunk](https://github.com/Mareixcode)
+* **上游作者**: [devhunk](https://github.com/devhunk)（原 MareixHunk）
+* **GitHub**: [devhunk/Cloudflare-ioDrive](https://github.com/devhunk/Cloudflare-ioDrive)
 
 ## 📜 License
 
-GPL-3.0 License © 2026 [MareixHunk](https://github.com/Mareixcode)
+GPL-3.0 License。本仓库为 [devhunk/Cloudflare-ioDrive](https://github.com/devhunk/Cloudflare-ioDrive)
+的 fork，同样以 GPL-3.0 分发；版权归原作者所有。
 
 ---
 
