@@ -18,7 +18,10 @@ interface AdminConfig {
 
 const ADMIN_CONFIG_KEY = '_config/admin';
 const LOGIN_ATTEMPTS_PREFIX = '_config/login_attempts/';
-const PASSWORD_ITERATIONS = 210_000;
+// PBKDF2 的 CPU 开销与迭代次数成正比，而 Workers 免费版每次请求只有 10ms CPU 预算：
+// 210,000 次约 79ms，会被运行时中断并返回 500；5,000 次约 2ms，留有余量。
+// 提高此值需要 Workers Paid 计划（上限 30s）。
+const PASSWORD_ITERATIONS = 5_000;
 
 interface LoginAttempt {
   count: number;

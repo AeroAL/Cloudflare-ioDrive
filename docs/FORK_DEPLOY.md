@@ -171,6 +171,7 @@ npm run dev
 | `STORAGE_CONFIG` 的 `primary` / `sync` 无效 | 上传路径未使用这两个标志；在 R2 绑定模式下**所有**已配置的 S3 后端都会被双写 |
 | S3 同步失败 | 仅 `console.error`，无重试/回填，镜像可能静默漂移 |
 | `PUBLIC_DOMAIN` | 只影响 imgbed/gallery/random 等公开 URL 辅助；**下载路径只读 `R2_PUBLIC_DOMAIN`**。两者设为同值最稳妥 |
+| 修改密码返回「服务器内部错误」 | 上游把 PBKDF2 设为 210,000 次迭代，在 Cloudflare 运行时实测约 **79ms CPU**，而 Workers 免费版每次请求上限 **10ms**，请求被中断。本 fork 已降到 **5,000 次（约 2ms）**。副作用：过去一直是明文比对登录，所以只有「修改密码」这条路径会触发；一旦保存成功，后续登录也会开始跑 PBKDF2。若要更高强度，升级 Workers Paid（CPU 上限 30s）后调回 `src/auth.ts` 的 `PASSWORD_ITERATIONS` |
 
 ## 9. 与上游同步
 
